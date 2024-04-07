@@ -17,16 +17,20 @@ const Tasks = new schema({
         ref: 'Groups'
     },
     assignedUsers: {
-        type: [{type: schema.Types.ObjectId, ref: 'Users'}],
+        type: [{ type: schema.Types.ObjectId, ref: 'Users' }],
         required: true
     },
     dueDate: schema.Types.Date,
     media: {
-        type: [{type: schema.Types.String, unique: true}]
+        type: [{ type: schema.Types.String, unique: true }]
     },
     state: {
         type: schema.Types.ObjectId,
         required: true
+    },
+    reminderID: {
+        type: schema.Types.String,
+        unique: true
     }
 });
 

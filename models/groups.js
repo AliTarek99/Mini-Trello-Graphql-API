@@ -15,19 +15,19 @@ const Groups = new schema({
     },
     states: {
         required: true,
-        type: [{name: schema.Types.String}]
+        type: [{ name: schema.Types.String }]
     },
     roles: [{
         color: {
-            type:{
-                r: {type: schema.Types.Number, required: true},
-                g: {type: schema.Types.Number, required: true},
-                b: {type: schema.Types.Number, required: true}
+            type: {
+                r: { type: schema.Types.Number, required: true },
+                g: { type: schema.Types.Number, required: true },
+                b: { type: schema.Types.Number, required: true }
             },
             required: true
         },
         permissions: {
-            type: [{type: schema.Types.ObjectId}],
+            type: [{ type: schema.Types.ObjectId }],
             reuquired: true
         }
     }],

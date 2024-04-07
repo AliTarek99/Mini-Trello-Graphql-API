@@ -15,6 +15,10 @@ const Users = new schema({
         unique: true,
         index: true
     },
+    password: {
+        required: true,
+        type: schema.Types.String
+    },
     phoneNumber: {
         type: schema.Types.String,
         unique: true
@@ -24,12 +28,23 @@ const Users = new schema({
         unique: true
     },
     friends: {
-        type: [{type: schema.Types.ObjectId, ref: 'Users'}],
+        type: [{ type: schema.Types.ObjectId, ref: 'Users' }],
         required: true
     },
-    friendRequest: {
-        type: [{type: schema.Types.ObjectId, ref: 'Users'}],
+    friendRequests: {
+        type: [{ type: schema.Types.ObjectId, ref: 'Users' }],
         required: true
+    },
+    verified: {
+        type: schema.Types.Boolean,
+        required: true
+    },
+    verficationToken: {
+        type: schema.Types.String,
+        unique: true
+    },
+    verificationExpiry: {
+        type: schema.Types.Date
     }
 })
 

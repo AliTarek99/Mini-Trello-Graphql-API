@@ -21,7 +21,8 @@ const Users = new schema({
     },
     phoneNumber: {
         type: schema.Types.String,
-        unique: true
+        unique: true,
+        index: true
     },
     picture: {
         type: schema.Types.String,
@@ -40,10 +41,15 @@ const Users = new schema({
         required: true
     },
     verficationToken: {
-        type: schema.Types.String,
-        unique: true
+        type: schema.Types.String
     },
     verificationExpiry: {
+        type: schema.Types.Date
+    },
+    passwordResetCode: {
+        type: schema.Types.String
+    },
+    passwordResetExpiry: {
         type: schema.Types.Date
     }
 })

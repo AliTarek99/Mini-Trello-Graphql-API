@@ -29,18 +29,24 @@ module.exports = buildSchema(`
         errors: [String]!
         user: User
         successful: Boolean!
+        token: String
     }
 
     type RootMutation {
         login(data: loginData!): Response!
-        verifyUser(code: String!): Response!
+        verifyUser(email:String!, code: String!): Boolean!
         signup(data: signupData!): Response!
         sendResetPasswordEmail(email: String!): String!
-        resetPasswordCode(code: String!): Boolean!
-        resetPassword(code: String!, password: String): Response!
+        resetPasswordCode(email:String!, code: String!): Boolean!
+        resetPassword(email: String!, code: String!, password: String!): Response!
+    }
+
+    type RootQuery {
+        c: String!
     }
 
     schema {
+        query: RootQuery
         mutation: RootMutation
     }
 `);

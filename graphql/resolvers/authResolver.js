@@ -33,7 +33,6 @@ exports.login = async ({ data }, req) => {
         res.errors.push('Server Error!');
         return res;
     }
-    console.log(process.env.JWT_PRIVATE_KEY);
     delete user.password;
     res.user = user;
     return res;
@@ -170,6 +169,7 @@ exports.resetPassword = async ({ email, code, password }, req) => {
         delete res.user.friendRequests;
         delete res.user.verficationToken;
         delete res.user.verificationExpiry;
+        res.token = jwt.sign({userId: res.user._id, verified: true}, process.env.JWT_PRIVATE_KEY);
     }
     else {
         res.errors.push('Invalid code or email!');

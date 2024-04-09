@@ -31,7 +31,7 @@ const Groups = new schema({
             reuquired: true
         }
     }],
-    inviteLink: {
+    inviteCode: {
         type: schema.Types.String,
         unique: true
     }

@@ -26,8 +26,8 @@ exports.login = async ({ data }, req) => {
             res.successful = false;
             return res;
         }
-        res.token = jwt.sign({userId: user._id, verified: user.verified}, process.env.JWT_PRIVATE_KEY);
-    } catch(err) {
+        res.token = jwt.sign({ userId: user._id, verified: user.verified }, process.env.JWT_PRIVATE_KEY);
+    } catch (err) {
         console.log(err);
         res.successful = false;
         res.errors.push('Server Error!');
@@ -83,8 +83,8 @@ exports.signup = async ({ data }, req) => {
         htmlPart: `<p>Your verification code is <b>${user.verficationToken}</b>. It expires after 1 hour.</p>`
     });
     res.user = await user.save();
-    
-    res.token = jwt.sign({userId: res.user._id, verified: res.user.verified}, process.env.JWT_PRIVATE_KEY);
+
+    res.token = jwt.sign({ userId: res.user._id, verified: res.user.verified }, process.env.JWT_PRIVATE_KEY);
     delete res.user.password;
     delete res.user.friends;
     delete res.user.friendRequests;
@@ -97,12 +97,12 @@ exports.verifyUser = async ({ email, code }, req) => {
     let user = await Users.findOneAndUpdate({
         email: email,
         verficationToken: code,
-        verificationExpiry: { $lt:  new Date()}
+        verificationExpiry: { $lt: new Date() }
     }, {
         verified: true,
         verficationToken: null,
         verificationExpiry: null
-    }, {projection: { email: 1 }, new: true});
+    }, { projection: { email: 1 }, new: true });
     if (user) return true;
     return false;
 }
@@ -131,7 +131,7 @@ exports.resetPasswordCode = async ({ email, code }, req) => {
         email: email,
         passwordResetCode: code,
         passwordResetExpiry: { $lt: new Date() }
-    }, {email: 1});
+    }, { email: 1 });
     if (user) {
         return true;
     }
@@ -169,7 +169,7 @@ exports.resetPassword = async ({ email, code, password }, req) => {
         delete res.user.friendRequests;
         delete res.user.verficationToken;
         delete res.user.verificationExpiry;
-        res.token = jwt.sign({userId: res.user._id, verified: true}, process.env.JWT_PRIVATE_KEY);
+        res.token = jwt.sign({ userId: res.user._id, verified: true }, process.env.JWT_PRIVATE_KEY);
     }
     else {
         res.errors.push('Invalid code or email!');

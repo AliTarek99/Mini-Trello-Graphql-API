@@ -7,13 +7,12 @@ const schema = buildSchema(`
         email: String!
         friends: [SearchUser]
         friendRequests: [SearchUser]
-        password: String
         picture: String
         phoneNumber: String
     }
 
     input UserInfo {
-        name: String!
+        name: String
         oldPassword: String
         newPassword: String
         picture: String
@@ -24,11 +23,21 @@ const schema = buildSchema(`
         name: String!
         picture: String
         friends: [SearchUser]
+        sentRequest: Boolean
+        inFriendRequests: Boolean
+        inFriendsList: Boolean
+    }
+
+    type Response {
+        errors: [String]!
+        successful: Boolean!
     }
 
     type RootMutation {
-        addFriend(name: String!): Boolean!
-        updateUserInfo(data: UserInfo): Boolean!
+        sendFriendRequest(name: String!): Boolean!
+        manageFriendRequest(name: String!, accept: Boolean!): Boolean!
+        removeFriend(name: String!): Boolean!
+        updateUserInfo(data: UserInfo): Response!
     }
 
     type RootQuery {

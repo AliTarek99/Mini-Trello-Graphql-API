@@ -20,7 +20,7 @@ exports.sendEmail = async (to, message) => {
     });
 };
 
-exports.getJwtPyaload = async (req) => {
+exports.getJwtPayload = async (req) => {
     if(req.Authorization) {
         let payload = jwt.decode(req.Authorization, process.env.JWT_PRIVATE_KEY);
         if(payload.userId)
@@ -35,8 +35,8 @@ exports.getUser = async (req) => {
     if(payload) {
         let user = await Users.findById(payload.userId);
         if(user) {
-            return user;
+            req.user = user;
         }
     }
-    return undefined;
+    req.user = undefined;
 }

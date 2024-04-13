@@ -8,6 +8,7 @@ const groupResolver = require('./graphql/resolvers/groupResolver');
 const profileSchema = require('./graphql/schemas/profileSchema');
 const profileResolver = require('./graphql/resolvers/profileResolver');
 const { graphqlHTTP } = require('express-graphql');
+const { spawn } = require('child_process');
 
 const dburi = 'mongodb+srv://alitarek:512003@cluster0.yt1qvle.mongodb.net/Mini-Trello?retryWrites=true&w=majority';
 const app = express();
@@ -22,6 +23,7 @@ app.use('/graphql',
   graphqlHTTP({ schema: profileSchema, rootValue: profileResolver  })
 );
 
+process.REMINDER = spawn('node', ['./util/reminder.js']);
 
 mongoose.connect(dburi).then((value) => {
   app.listen(3000);

@@ -10,9 +10,9 @@ module.exports = buildSchema(`
     type Task {
         id: ID!
         name: String!
-        description: String
+        description: String!
         groupId: ID!
-        assignedUsers: [User]
+        assignedUsers: [User]!
         dueDate: Date!
         media: String
         state: ID!
@@ -116,7 +116,7 @@ module.exports = buildSchema(`
         joinGroup(code: String!): GroupResponse!
 
         addMember(groupId: ID!, name: String!): Boolean!
-        removeMember(groupId: ID!, name: String!) Boolean!
+        removeMember(groupId: ID!, name: String!): Boolean!
         changePrivilege(name: String!, admin: Boolean!): Response!
     }
 

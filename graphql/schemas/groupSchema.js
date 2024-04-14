@@ -3,7 +3,7 @@ const { buildSchema } = require('graphql');
 module.exports = buildSchema(`
 
     type State {
-        id: ID!
+        id: ID
         name: String!
     }
 
@@ -12,13 +12,14 @@ module.exports = buildSchema(`
         name: String!
         description: String!
         groupId: ID!
-        assignedUsers: [User]!
+        assignedUsers: [String]!
         dueDate: Date!
         media: String
         state: ID!
     }
 
     type Role {
+        id: ID
         color: [Int]!
         permissions: [ID]!
     }
@@ -32,7 +33,7 @@ module.exports = buildSchema(`
     }
 
     type User {
-        picture: String!
+        picture: String
         name: String!
     }
 
@@ -48,9 +49,10 @@ module.exports = buildSchema(`
     type Comment {
         id: ID
         task: ID!
-        username: String!
+        user: User
         media: String
         text: String
+        mentions: [String]
     }
 
     type CommentResponse {
@@ -83,13 +85,6 @@ module.exports = buildSchema(`
         successful: Boolean!
     }
 
-    type Comment {
-        user: User
-        text: String
-        media: String
-        mentions: [String]
-    }
-
     type RootMutation {
         addComment(taskId: ID!, comment: Comment!, notifyViaEmail: Boolean): CommentResponse!
 
@@ -104,9 +99,9 @@ module.exports = buildSchema(`
 
         addRole(groupId: ID!, role: Role!): GroupResponse!
         removeRole(groupId: ID!, roleId: ID!): Boolean!
-        modifyRole(groupId: ID!, data: Role!, notifyViaEmail: Boolean): Response!
+        modifyRole(groupId: ID!, role: Role!, notifyViaEmail: Boolean): Response!
 
-        assignTaskToMember(taskId: ID!, memberName: String!): Response!
+        assignTaskToMember(groupId: ID!, taskId: ID!, memberName: String!): Response!
 
         addState(groupId: ID!, state: State!): StateResponse!
         removeState(groupId: ID!,stateId: ID!): Boolean!

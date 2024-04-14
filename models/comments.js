@@ -20,7 +20,8 @@ const Comments = new schema({
     },
     text: {
         type: schema.Types.String
-    }
+    },
+    mentions: [{type: schema.Types.ObjectId, ref: 'Users'}]
 });
 
 module.exports = mongoose.model('Comments', Comments, 'Comments');

@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const tasks = require('./tasks');
 const { types } = require('../util/remider');
+const groupMembers = require('./groupMembers');
 
 const schema = mongoose.Schema;
 
@@ -20,6 +21,10 @@ const Groups = new schema({
         type: [{ name: schema.Types.String }]
     },
     roles: [{
+        name: { 
+            type: schema.Types.String,
+            required: true
+        },
         color: {
             type: {
                 r: { type: schema.Types.Number, required: true },
@@ -35,19 +40,24 @@ const Groups = new schema({
     }],
     inviteCode: {
         type: schema.Types.String,
-        unique: true
+        unique: true,
+        index: true
     }
 });
 
 Groups.pre('deleteMany', async function (next) {
     try {
+        // delete and unschedule all tasks
         let tmp = await tasks.find({group: {$in: this.getQuery()._id}});
-        tasks.deleteMany({group: {$in: this.getQuery()._id}});
+        tasks.deleteMany({group: this.getQuery()._id});
         tmp.forEach(value => {
             process.REMINDER.stdin.resume();
             process.REMINDER.stdin.write(JSON.stringify({type: types.delete, taskId: value._id}));
             process.REMINDER.end();
         });
+
+        // delete all members
+        groupMembers.deleteMany({group: this.getQuery()._id});
         next();
     } catch(err) {
         console.log(err);

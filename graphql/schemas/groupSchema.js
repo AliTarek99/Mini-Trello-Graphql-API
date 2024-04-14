@@ -3,7 +3,7 @@ const { buildSchema } = require('graphql');
 module.exports = buildSchema(`
 
     type State {
-        id: ID
+        id: ID!
         name: String!
     }
 
@@ -20,6 +20,7 @@ module.exports = buildSchema(`
 
     type Role {
         id: ID
+        name: String!
         color: [Int]!
         permissions: [ID]!
     }
@@ -41,14 +42,13 @@ module.exports = buildSchema(`
         id: ID!
         name: String!
         creator: User
-        states: [state]
-        roles: [role]
+        states: [State]
+        roles: [Role]
         inviteCode: String
     }
 
     type Comment {
         id: ID
-        task: ID!
         user: User
         media: String
         text: String
@@ -99,25 +99,27 @@ module.exports = buildSchema(`
 
         addRole(groupId: ID!, role: Role!): GroupResponse!
         removeRole(groupId: ID!, roleId: ID!): Boolean!
-        modifyRole(groupId: ID!, role: Role!, notifyViaEmail: Boolean): Response!
+        modifyRole(groupId: ID!, role: Role!): Response!
 
         assignTaskToMember(groupId: ID!, taskId: ID!, memberName: String!): Response!
 
-        addState(groupId: ID!, state: State!): StateResponse!
+        addState(groupId: ID!, state: String!): StateResponse!
         removeState(groupId: ID!,stateId: ID!): Boolean!
         modifyStateName(groupId: ID!, state: State!): Response!
 
-        createGroupInviteCode(groupId: ID!): Response!
+        createGroupInviteCode(groupId: ID!): GroupResponse!
         joinGroup(code: String!): GroupResponse!
 
         addMember(groupId: ID!, name: String!): Boolean!
         removeMember(groupId: ID!, name: String!): Boolean!
-        changePrivilege(name: String!, admin: Boolean!): Response!
+        changePrivilege(groupId: ID!, name: String!, admin: Boolean!): Response!
+        changeMemberRole(groupId: ID!, name: String!, role: ID!): Response!
     }
 
     type RootQuery {
         searchGroups(name: String!): [Group]
-        getTasks(groupId: ID!, taskId: ID): [Task]
+        getTasks(groupId: ID, taskId: ID): [Task]
+        getMyGroups: [Group]
     }
 
     schema {

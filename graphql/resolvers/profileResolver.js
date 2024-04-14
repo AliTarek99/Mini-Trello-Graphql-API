@@ -108,7 +108,7 @@ exports.updateUserInfo = async ({ data }, req) => {
 
 exports.searchUsers = async ({ name }, req) => {
     if (req.user) {
-        let result = await Users.find({ name: { $regex: `${name}*` } }, { name: 1, picture: 1, friendRequests: 1, friends: 1 });
+        let result = await Users.find({ name: { $regex: `^${name}.*` } }, { name: 1, picture: 1, friendRequests: 1, friends: 1 });
         result.forEach(value => {
             return {
                 name: value.name,

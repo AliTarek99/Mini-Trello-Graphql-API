@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const tasks = require('./tasks');
-const { types } = require('../util/remider');
+const { types } = require('../util/reminder');
 const groupMembers = require('./groupMembers');
 
 const schema = mongoose.Schema;

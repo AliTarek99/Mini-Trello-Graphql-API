@@ -1,4 +1,4 @@
 node_modules
 Design
 data/*/*
-graphql/schemas/auth.graphql
+graphql/schemas/*.graphql

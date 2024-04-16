@@ -42,8 +42,8 @@ module.exports = buildSchema(`
 
     type RootQuery {
         searchUsers(name: String!): [SearchUser]
-        getUserProfile(name: String, userId: String): SearchUser
-        getPersonalProfile(userId: String, email: String): User
+        getUserProfile(name: String): SearchUser
+        getPersonalProfile: User
     }
 
     schema {

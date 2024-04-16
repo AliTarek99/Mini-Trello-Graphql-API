@@ -17,11 +17,10 @@ exports.login = async ({ data }, req) => {
             friends: 0,
             friendRequests: 0,
             verficationToken: 0,
-            verificationExpiry: 0,
             passwordResetCode: 0,
             passwordResetExpiry: 0
         });
-        if (!user || ! await bcrypt.compare(data.password, user.password)) {
+        if (!user || ! await bcrypt.compare(data.password, user.password) || (!user.verified && user.verificationExpiry < new Date())) {
             res.errors.push('Invalid Credentials!');
             res.successful = false;
             return res;
@@ -41,12 +40,14 @@ exports.login = async ({ data }, req) => {
 
 exports.signup = async ({ data }, req) => {
     let res = { errors: [], successful: true };
-    if (!validator.isEmail(data.email) || (await Users.findOne({ email: data.email }, { email: 1 }))) {
+    let check = await Users.findOne({ email: data.email }, { email: 1, verified: 1, verificationExpiry: 1 });
+    if (!validator.isEmail(data.email) || (check && (check.verified || check.verificationExpiry > new Date()))) {
         res.errors.push('Invalid Email!');
         res.successful = false;
     }
 
-    if (!data.name || (await Users.findOne({ name: data.name }, { name: 1 }))) {
+    check = await Users.findOne({ name: data.name }, { email: 1, verified: 1, verificationExpiry: 1 });
+    if (!data.name || (check && (check.verified || check.verificationExpiry > new Date()))) {
         res.errors.push('Username already exists!');
         res.successful = false;
     }
@@ -55,6 +56,7 @@ exports.signup = async ({ data }, req) => {
         res.errors.push('Password must be between 5 and 20 characters!');
         res.successful = false;
     }
+    
 
     if (data.phoneNumber && !validator.isMobilePhone(data.phoneNumber)) {
         res.errors.push('Invalid phoneNumber!');

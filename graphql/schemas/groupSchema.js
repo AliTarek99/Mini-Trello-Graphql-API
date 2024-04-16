@@ -1,7 +1,7 @@
 const { buildSchema } = require('graphql');
 
 module.exports = buildSchema(`
-
+    scalar Date
     type State {
         id: ID!
         name: String!
@@ -28,8 +28,8 @@ module.exports = buildSchema(`
     input GroupInfo {
         id: ID
         name: String!
-        states: [state]
-        roles: [role]
+        states: [State]
+        roles: [Role]
         inviteCode: String
     }
 

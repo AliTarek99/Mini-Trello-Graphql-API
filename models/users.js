@@ -21,12 +21,10 @@ const Users = new schema({
     },
     phoneNumber: {
         type: schema.Types.String,
-        unique: true,
         index: true
     },
     picture: {
-        type: schema.Types.String,
-        unique: true
+        type: schema.Types.String
     },
     friends: {
         type: [{ type: schema.Types.ObjectId, ref: 'Users' }],

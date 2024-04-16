@@ -1,17 +1,38 @@
 const Task = require('../../models/tasks');
 const Group = require('../../models/groups');
 const GroupMember = require('../../models/groupMembers');
-const { types } = require('../../util/remider');
+const { types } = require('../../util/reminder');
 const { sendEmail } = require('../../util/helper');
 const User = require('../../models/users');
 const Comment = require('../../models/comments');
 const { getIO } = require('../../util/sockets');
+const { GraphQLScalarType } = require('graphql')
 
 
+
+exports.Date = new GraphQLScalarType({
+    name: 'Date',
+    description: 'Date custom scalar type',
+    parseValue(value) {
+        // Convert incoming date string to Date object
+        return new Date(value);
+    },
+    serialize(value) {
+        // Convert outgoing Date object to string
+        return value.toISOString();
+    },
+    parseLiteral(ast) {
+        if (ast.kind === Kind.STRING) {
+            // Parse AST string to Date object
+            return new Date(ast.value);
+        }
+        return null;
+    },
+})
 
 exports.addComment = async ({ taskId, comment, notifyViaEmail }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
         if (!comment.text && !comment.media) {
             res.errors.push('Bad request.')
             res.successful = false;
@@ -71,16 +92,16 @@ exports.addComment = async ({ taskId, comment, notifyViaEmail }, req) => {
         c = await c.save();
         res.comment = c;
         return res;
-    }
+    // }
 
-    res.errors.push('Unauthorized access.')
-    res.successful = false;
-    return res;
+    // res.errors.push('Unauthorized access.')
+    // res.successful = false;
+    // return res;
 }
 
 exports.addTask = async ({ task, groupId }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
         // check if user is group admin
         let member = await GroupMember.findOne({ user: req.user._id, admin: true, group: groupId });
         if (!member) {
@@ -109,13 +130,13 @@ exports.addTask = async ({ task, groupId }, req) => {
         });
         res.task = await tmp.save();
         tmp = res.task;
-        tmp.populate('assignedUsers', '_id name email');
+        tmp.populate('assignedUsers', '_id name email picture');
 
         // notify other assigned users
         let sockets = getIO();
         tmp.assignedUsers.forEach(user => {
-            if (sockets && sockets.userSocket.has(user._id.toString())) {
-                sockets.to(sockets.userSocket[user._id.toString()]).emit('taskStateChanged', { taskId: res.task._id, newStateId: newStateId });
+            if (sockets && sockets.userSocket[user._id.toString()]) {
+                sockets.to(sockets.userSocket[user._id.toString()]).emit('taskAdded', { task: tmp });
             }
         });
         sendEmail(tmp.assignedUsers.map(value => { return { Name: value.name, Email: value.email } }), {
@@ -129,14 +150,14 @@ exports.addTask = async ({ task, groupId }, req) => {
         process.REMINDER.stdin.write(JSON.stringify({ date: task.dueDate, taskId: res.task._id.toString(), type: types.create }));
         process.REMINDER.stdin.end();
         return res;
-    }
-    res.errors.push('Unauthorized access.'), res.successful = false;
-    return res;
+    // }
+    // res.errors.push('Unauthorized access.'), res.successful = false;
+    // return res;
 }
 
 exports.changeTaskState = async ({ taskId, newStateId }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
         let task = await Task.findById(taskId, { _id: 1, assignedUsers: 1, state: 1, group: 1 })
             .populate([
                 { path: 'group', select: '_id roles states' },
@@ -182,7 +203,7 @@ exports.changeTaskState = async ({ taskId, newStateId }, req) => {
         // notify other assigned users
         let sockets = getIO();
         task.assignedUsers.forEach(user => {
-            if (sockets && sockets.userSocket.has(user._id.toString())) {
+            if (sockets && sockets.userSocket[user._id.toString()]) {
                 sockets.to(sockets.userSocket[user._id.toString()]).emit('taskStateChanged', { taskId: task._id, newStateId: newStateId, oldStateId: task.state });
             }
         });
@@ -195,14 +216,14 @@ exports.changeTaskState = async ({ taskId, newStateId }, req) => {
         task.state = newStateId;
         task.save();
         return res;
-    }
-    res.errors.push('Unauthorized access.')
-    res.successful = false;
-    return res;
+    // }
+    // res.errors.push('Unauthorized access.')
+    // res.successful = false;
+    // return res;
 }
 
 exports.removeTask = async ({ taskId }, req) => {
-    if (req.user) {
+    // if (req.user) {
 
         // check if member is group admin
         let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
@@ -224,13 +245,13 @@ exports.removeTask = async ({ taskId }, req) => {
             return true;
         }
         return false;
-    }
-    return false;
+    // }
+    // return false;
 }
 
 exports.modifyTask = async ({ task }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
         // check that request sender is group admin
         let member = await GroupMember.findOne({ user: req.user._id, admin: true, group: groupId });
         if (!member) {
@@ -283,14 +304,14 @@ exports.modifyTask = async ({ task }, req) => {
             res.successful = false;
         }
         return res;
-    }
-    res.errors.push('Unauthorized access.'), res.successful = false;
-    return res;
+    // }
+    // res.errors.push('Unauthorized access.'), res.successful = false;
+    // return res;
 }
 
 exports.modifyGroupInfo = async ({ data }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
         // check that request sender is group admin
         let member = await GroupMember.findOne({ user: req.user._id, admin: true, group: data._id });
         if (!member) {
@@ -313,14 +334,14 @@ exports.modifyGroupInfo = async ({ data }, req) => {
             res.successful = false;
         }
         return res;
-    }
-    res.errors.push('Unauthorized access.'), res.successful = false;
-    return res;
+    // }
+    // res.errors.push('Unauthorized access.'), res.successful = false;
+    // return res;
 }
 
 exports.createGroup = async ({ data }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
         let group = new Group({
             creator: req.user._id,
             name: data.name,
@@ -329,13 +350,13 @@ exports.createGroup = async ({ data }, req) => {
         });
         res.group = await group.save();
         return res;
-    }
-    res.errors.push('Unauthorized access.'), res.successful = false;
-    return res;
+    // }
+    // res.errors.push('Unauthorized access.'), res.successful = false;
+    // return res;
 }
 
 exports.deleteGroup = async ({ groupId }, req) => {
-    if (req.user) {
+    // if (req.user) {
         // check if the request sender is the creator of the group before deleting it
         let group = await Group.findById(groupId);
         if (req.user._id == group.creator) {
@@ -352,13 +373,13 @@ exports.deleteGroup = async ({ groupId }, req) => {
             await Group.findByIdAndDelete(groupId);
             return true;
         }
-    }
-    return false;
+    // }
+    // return false;
 }
 
 exports.addRole = async ({ groupId, role }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
         // check that request sender is group admin
         let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
         if (!member.admin) {
@@ -390,14 +411,14 @@ exports.addRole = async ({ groupId, role }, req) => {
         group = await group.save();
         res.role = group.roles[group.roles.length - 1];
         return res;
-    }
-    res.errors.push('Unauthorized access.');
-    res.successful = false;
-    return res;
+    // }
+    // res.errors.push('Unauthorized access.');
+    // res.successful = false;
+    // return res;
 }
 
 exports.removeRole = async ({ groupId, roleId }, req) => {
-    if (req.user) {
+    // if (req.user) {
         // check that request sender is group admin
         let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
         if (!member.admin) {
@@ -416,13 +437,13 @@ exports.removeRole = async ({ groupId, roleId }, req) => {
         group.roles = group.roles.filter(value => value._id.toString() != roleId);
         await group.save();
         return true;
-    }
-    return false;
+    // }
+    // return false;
 }
 
 exports.modifyRole = async ({ groupId, role }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
         // check that user provided role id or not
         if (!role.id) {
             res.errors.push('Missing role id.');
@@ -465,15 +486,15 @@ exports.modifyRole = async ({ groupId, role }, req) => {
         });
         await group.save();
         return res;
-    }
-    res.errors.push('Unauthorized access.');
-    res.successful = false;
-    return res;
+    // }
+    // res.errors.push('Unauthorized access.');
+    // res.successful = false;
+    // return res;
 }
 
 exports.assignTaskToMember = async ({ groupId, taskId, memberName }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
         // check that request sender is group admin
         let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
         if (!member.admin) {
@@ -500,7 +521,7 @@ exports.assignTaskToMember = async ({ groupId, taskId, memberName }, req) => {
             htmlPart: `Dear ${user.name},<br><b>${req.user.name}</b> assigned you to <b>${task.name}</b> task which is scheduled to be completed by <b>${task.dueDate}</b>.`
         });
         let sockets = getIO();
-        if (sockets && sockets.userSocket.has(user._id.toString())) {
+        if (sockets && sockets.userSocket[user._id.toString()]) {
             sockets.to(sockets.userSocket[user._id.toString()]).emit('taskAssigned', { admin: req.user.name, taskName: task.name, dueDate: task.dueDate });
         }
 
@@ -508,15 +529,15 @@ exports.assignTaskToMember = async ({ groupId, taskId, memberName }, req) => {
         task.assignedUsers.push(user._id);
         await task.save();
         return res;
-    }
-    res.errors.push('Unauthorized access.');
-    res.successful = false;
-    return res;
+    // }
+    // res.errors.push('Unauthorized access.');
+    // res.successful = false;
+    // return res;
 }
 
 exports.addState = async ({ groupId, state }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
         let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
         if (!member.admin) {
             res.errors.push('Unauthorized access.')
@@ -529,14 +550,14 @@ exports.addState = async ({ groupId, state }, req) => {
         group = await group.save()
         res.state = group.states[group.states.length - 1];
         return res;
-    }
-    res.errors.push('Unauthorized access.');
-    res.successful = false;
-    return res;
+    // }
+    // res.errors.push('Unauthorized access.');
+    // res.successful = false;
+    // return res;
 }
 
 exports.removeState = async ({ groupId, stateId }, req) => {
-    if (req.user) {
+    // if (req.user) {
         let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
         if (!member.admin) {
             return false;
@@ -554,13 +575,13 @@ exports.removeState = async ({ groupId, stateId }, req) => {
             return true;
         }
         return false;
-    }
-    return false;
+    // }
+    // return false;
 }
 
 exports.modifyStateName = async ({ groupId, state }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
         let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
         if (!member.admin) {
             res.errors.push('Unauthorized access.')
@@ -572,15 +593,15 @@ exports.modifyStateName = async ({ groupId, state }, req) => {
         group.states = group.states.map(value => value._id.toString() == state.id ? { _id: value._id, name: value.name } : value);
         await group.save();
         return res;
-    }
-    res.errors.push('Unauthorized access.');
-    res.successful = false;
-    return res;
+    // }
+    // res.errors.push('Unauthorized access.');
+    // res.successful = false;
+    // return res;
 }
 
 exports.createGroupInviteCode = async ({ groupId }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
         let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
         if (!member.admin) {
             res.errors.push('Unauthorized access.')
@@ -592,15 +613,15 @@ exports.createGroupInviteCode = async ({ groupId }, req) => {
         group.inviteCode = crypto.randomUUID().toString();
         res.group = await group.save();
         return res;
-    }
-    res.errors.push('Unauthorized access.');
-    res.successful = false;
-    return res;
+    // }
+    // res.errors.push('Unauthorized access.');
+    // res.successful = false;
+    // return res;
 }
 
 exports.joinGroup = async ({ code }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
         let group = await Group.findOne({ inviteCode: code });
         if (group) {
             let member = new GroupMember({
@@ -615,15 +636,15 @@ exports.joinGroup = async ({ code }, req) => {
         res.errors.push('Invalid invite code.');
         res.successful = false;
         return res;
-    }
-    res.errors.push('Unauthorized access.');
-    res.successful = false;
-    return res;
+    // }
+    // res.errors.push('Unauthorized access.');
+    // res.successful = false;
+    // return res;
 }
 
 exports.addMember = async ({ groupId, name }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
 
         // check if request sender is group admin
         let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1, group: 1 });
@@ -641,15 +662,15 @@ exports.addMember = async ({ groupId, name }, req) => {
             user: user._id
         });
         await member.save();
-    }
-    res.errors.push('Unauthorized access.');
-    res.successful = false;
-    return res;
+    // }
+    // res.errors.push('Unauthorized access.');
+    // res.successful = false;
+    // return res;
 }
 
 exports.removeMember = async ({ groupId, name }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
         let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
         if (!member.admin || req.user.name == name) {
             res.errors.push('Unauthorized access.')
@@ -672,19 +693,19 @@ exports.removeMember = async ({ groupId, name }, req) => {
             htmlPart: `Dear ${user.name},<br>You have been removed from <b>${group.name}</b> group by <b>${req.user.name}</b>.`
         });
         let sockets = getIO();
-        if (sockets && sockets.userSocket.has(user._id.toString())) {
+        if (sockets && sockets.userSocket[user._id.toString()]) {
             sockets.to(sockets.userSocket[user._id.toString()]).emit('removedFromGroup', { groupName: group.name, groupId: group._id, by: req.user.name });
         }
         return true;
-    }
-    res.errors.push('Unauthorized access.');
-    res.successful = false;
-    return res;
+    // }
+    // res.errors.push('Unauthorized access.');
+    // res.successful = false;
+    // return res;
 }
 
 exports.changeMemberRole = async ({ groupId, name, role }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
         let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
         if (!member.admin) {
             res.errors.push('Unauthorized access.')
@@ -713,20 +734,20 @@ exports.changeMemberRole = async ({ groupId, name, role }, req) => {
             htmlPart: `Dear ${user.name},<br>Your role has been changed to <b>${group.roles[idx].name}</b> by <b>${req.user.name}</b>.`
         });
         let sockets = getIO();
-        if (sockets && sockets.userSocket.has(user._id.toString())) {
+        if (sockets && sockets.userSocket[user._id.toString()]) {
             sockets.to(sockets.userSocket[user._id.toString()]).emit('roleChanged', { groupName: group.name, groupId: group._id, by: req.user.name, newRole: role });
         }
         member.role = role;
         return res;
-    }
-    res.errors.push('Unauthorized access.');
-    res.successful = false;
-    return res;
+    // }
+    // res.errors.push('Unauthorized access.');
+    // res.successful = false;
+    // return res;
 }
 
 exports.changePrivilege = async ({ groupId, name, admin }, req) => {
     let res = { errors: [], successful: true };
-    if (req.user) {
+    // if (req.user) {
         let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
         if (!member.admin) {
             res.errors.push('Unauthorized access.')
@@ -742,7 +763,7 @@ exports.changePrivilege = async ({ groupId, name, admin }, req) => {
             return res;
         }
         let group = await Group.findById(groupId, { _id: 1, name: 1, creator: 1 });
-        if(group.creator == user._id) {
+        if (group.creator == user._id) {
             res.errors.push("Cannot change creator's privilege.");
             res.successful = false;
             return res;
@@ -755,43 +776,43 @@ exports.changePrivilege = async ({ groupId, name, admin }, req) => {
             htmlPart: `Dear ${user.name},<br>Your privilege has been changed in <b>${group.name}</b> group by <b>${req.user.name}</b>.`
         });
         let sockets = getIO();
-        if (sockets && sockets.userSocket.has(user._id.toString())) {
+        if (sockets && sockets.userSocket[user._id.toString()]) {
             sockets.to(sockets.userSocket[user._id.toString()]).emit('privilegeChanged', { groupName: group.name, groupId: group._id, by: req.user.name, admin: admin });
         }
         return res;
-    }
-    res.errors.push('Unauthorized access.');
-    res.successful = false;
-    return res;
+    // }
+    // res.errors.push('Unauthorized access.');
+    // res.successful = false;
+    // return res;
 }
 
 exports.searchGroups = async ({ name }, req) => {
-    if(req.user) {
-        let groups = await Group.find({name: {$regex: `^${name}.*`}}, {inviteCode: 0, roles: 0, states: 0});
+    // if (req.user) {
+        let groups = await Group.find({ name: { $regex: `^${name}.*` } }, { inviteCode: 0, roles: 0, states: 0 });
         return groups;
-    }
-    return [];
+    // }
+    // return [];
 }
 
 exports.getTasks = async ({ groupId, taskId }, req) => {
-    if(req.user && (groupId || taskId)) {
-        let tasks = groupId? await Task.find({group: groupId}, {reminderID: 0}): [await Task.findById(taskId, {reminderID: 0})];
+    if (/*req.user &&*/ (groupId || taskId)) {
+        let tasks = groupId ? await Task.find({ group: groupId }, { reminderID: 0 }) : [await Task.findById(taskId, { reminderID: 0 })];
         return tasks;
     }
-    return [];
+    // return [];
 }
 
 
 exports.getMyGroups = async (args, req) => {
-    if(req.user) {
-        let groups = await GroupMember.find({user: req.user._id}, {group: 1, admin: 1}).populate('group');
+    // if (req.user) {
+        let groups = await GroupMember.find({ user: req.user._id }, { group: 1, admin: 1 }).populate('group');
 
         return groups.map(value => {
-            if(value.admin)
+            if (value.admin)
                 return value;
             delete value.group.inviteCode;
             return value;
         })
-    }
-    return [];
+    // }
+    // return [];
 }

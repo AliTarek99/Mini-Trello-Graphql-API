@@ -15,8 +15,7 @@ const Comments = new schema({
         ref: 'Users'
     },
     media: {
-        type: schema.Types.String,
-        unique: true
+        type: schema.Types.String
     },
     text: {
         type: schema.Types.String

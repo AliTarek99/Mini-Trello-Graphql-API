@@ -1,9 +1,18 @@
 const { buildSchema } = require('graphql');
 
 module.exports = buildSchema(`
-    scalar Date
+    
     type State {
         id: ID!
+        name: String!
+    }
+
+    input StateInput {
+        name: String!
+    }
+
+    input ModifiedStateInput {
+        id: ID
         name: String!
     }
 
@@ -11,26 +20,73 @@ module.exports = buildSchema(`
         id: ID!
         name: String!
         description: String!
-        groupId: ID!
-        assignedUsers: [String]!
-        dueDate: Date!
-        media: String
+        group: ID!
+        assignedUsers: [User]!
+        dueDate: String!
+        media: [String]
         state: ID!
     }
 
-    type Role {
+    input TaskInput {
+        name: String!
+        description: String!
+        assignedUsers: [String]!
+        dueDate: String!
+        media: [String]
+        state: ID!
+    }
+
+    input ModifiedTaskInput {
         id: ID
         name: String!
-        color: [Int]!
+        description: String!
+        assignedUsers: [String]!
+        dueDate: String!
+        media: [String]
+        state: ID!
+    }
+
+    type Color {
+        r: Int!
+        g: Int!
+        b: Int!
+    }
+
+    input InputColor {
+        r: Int!
+        g: Int!
+        b: Int!
+    }
+
+    type Role {
+        id: ID!
+        name: String!
+        color: Color!
+        permissions: [ID]!
+    }
+
+    input RoleInput {
+        name: String!
+        color: InputColor!
+        permissions: [ID]!
+    }
+
+    input ModifiedRoleInput {
+        id: ID
+        name: String!
+        color: InputColor!
         permissions: [ID]!
     }
 
     input GroupInfo {
-        id: ID
         name: String!
-        states: [State]
-        roles: [Role]
-        inviteCode: String
+        states: [StateInput]
+    }
+
+    input ModifiedGroupInfo {
+        id: ID!
+        name: String
+        states: [StateInput]
     }
 
     type User {
@@ -48,8 +104,15 @@ module.exports = buildSchema(`
     }
 
     type Comment {
+        id: ID!
+        user: User!
+        media: String
+        text: String
+        mentions: [String]
+    }
+
+    input CommentInput {
         id: ID
-        user: User
         media: String
         text: String
         mentions: [String]
@@ -86,26 +149,26 @@ module.exports = buildSchema(`
     }
 
     type RootMutation {
-        addComment(taskId: ID!, comment: Comment!, notifyViaEmail: Boolean): CommentResponse!
+        addComment(taskId: ID!, comment: CommentInput!, notifyViaEmail: Boolean): CommentResponse!
 
-        addTask(task: Task!, groupId: ID!): TaskResponse!
+        addTask(task: TaskInput!, groupId: ID!): TaskResponse!
         changeTaskState(taskId: ID!, newStateId: ID!): Response!
         removeTask(taskId: ID!): Boolean!
-        modifyTask(task: Task!): Response!
+        modifyTask(task: ModifiedTaskInput!): Response!
 
-        modifyGroupInfo(data: GroupInfo): GroupResponse!
-        createGroup(data: GroupInfo): GroupResponse!
+        modifyGroupInfo(data: ModifiedGroupInfo!): GroupResponse!
+        createGroup(data: GroupInfo!): GroupResponse!
         deleteGroup(groupId: ID!): Boolean!
 
-        addRole(groupId: ID!, role: Role!): GroupResponse!
+        addRole(groupId: ID!, role: RoleInput!): GroupResponse!
         removeRole(groupId: ID!, roleId: ID!): Boolean!
-        modifyRole(groupId: ID!, role: Role!): Response!
+        modifyRole(groupId: ID!, role: ModifiedRoleInput!): Response!
 
         assignTaskToMember(groupId: ID!, taskId: ID!, memberName: String!): Response!
 
         addState(groupId: ID!, state: String!): StateResponse!
         removeState(groupId: ID!,stateId: ID!): Boolean!
-        modifyStateName(groupId: ID!, state: State!): Response!
+        modifyStateName(groupId: ID!, state: ModifiedStateInput!): Response!
 
         createGroupInviteCode(groupId: ID!): GroupResponse!
         joinGroup(code: String!): GroupResponse!

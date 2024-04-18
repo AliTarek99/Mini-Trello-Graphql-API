@@ -12,35 +12,55 @@ const { spawn } = require('child_process');
 const io = require('./util/sockets');
 const { getUser, errorhandler, fileUpload, getJwtPayload } = require('./util/helper');
 const multer = require('multer');
+const groupMembers = require('./models/groupMembers');
+const { Worker } = require('worker_threads');
+process.REMINDER = new Worker("./util/reminder.js");
 
-process.JWT_PRIVATE_KEY = ';jkljsd./423wq1341@#ja;sq';
+process.env.JWT_PRIVATE_KEY = ';jkljsd./423wq1341@#ja;sq';
 
 const storage = multer.diskStorage({
   destination: async function (req, file, cb) {
-    if (req.originalUrl.split('/')[2] == 'profile') {
-      cb(null, path.join('data', 'profilePictures'));
+    let err = new Error();
+    err.originalError = true;
+    err.set = true;
+    if(!req.body.dest) {
+      err.message = 'Missing dest.';
+      return cb(err);
     }
-    else if (req.originalUrl.split('/')[2] == 'group') {
-      cb(null, path.join('data', 'media'));
+    if (req.body.dest == 'profile') {
+      return cb(null, path.join('data', 'profilePictures'));
+    }
+    else if (req.body.dest == 'group') {
+      return cb(null, path.join('data', 'media'));
     }
   },
   filename: async function (req, file, cb) {
+    let err = new Error();
+    err.originalError = true;
+    err.set = true;
+    if(!req.body.dest) {
+      err.message = 'Missing dest.';
+      return cb(err);
+    }
     req.payload = getJwtPayload(req);
-    if (req.originalUrl.split('/')[2] == 'profile') {
+    if (req.body.dest == 'profile') {
       if (req.payload.userId) {
-        let dest = req.payload.userId + '-' + file.filename;
-        cb(null, dest);
+        let dest = req.payload.userId + '-' + file.originalname;
+        return cb(null, dest);
       }
-      cb(new Error('unauthorized upload.'), '');
+      err.message = 'unauthorized upload.';
+      return cb(err);
     }
-    else if (req.originalUrl.split('/')[2] == 'group') {
-      if (req.payload.userId) {
-        let dest = new Date().getTime() + '-' + req.payload.userId + '-' + file.filename;
-        cb(null, dest);
+    else if (req.body.dest == 'group') {
+      if (req.payload.userId && req.body.groupId && await groupMembers.findOne({group: req.body.groupId, user: req.payload.userId})) {
+        let dest = new Date().getTime() + '-' + req.body.groupId + '.' + file.mimetype.split('/')[1];
+        return cb(null, dest);
       }
-      cb(new Error('unauthorized upload.'), '');
+      err.message = 'unauthorized upload.';
+      return cb(err);
     }
-    cb(new Error('Invalid Path.'));
+    err.message = 'Invalid path.';
+      return cb(err);
   }
 });
 
@@ -49,9 +69,13 @@ const upload = multer({
   fileFilter: function (req, file, cb) {
     if (file.mimetype == 'image/png' || file.mimetype == 'image/jpg' ||
       file.mimetype == 'image/jpeg' || file.mimetype == 'image/mp4') {
-      cb(null, true);
+      return cb(null, true);
     }
-    cb(new Error('Invalid file.'), false);
+    let err = new Error();
+    err.originalError = true;
+    err.set = true;
+    err.message = 'Invalid file.';
+    return cb(err, false);
   }
 })
 
@@ -66,7 +90,15 @@ app.use((req, res, next) => {
 });
 
 app.use('/profile/data/profilePictures', express.static(path.join('data', 'profilePictures')));
-app.use('/groups/data/media', express.static(path.join('data', 'media')));
+app.use('/groups/data/media', getUser, async (req, res, next) => {
+  let member = await groupMembers.findOne({group: req.originalUrl.split('-')[1].split('.')[0], user: req.user._id});
+  if(member)
+    return next();
+  let err = new Error('Unauthorized access!');
+  err.set = true;
+  err.originalError = true;
+  next(err);
+}, express.static(path.join('data', 'media')));
 
 app.use('/api/uploadFile', getUser, upload.single('file'), fileUpload);
 
@@ -90,7 +122,6 @@ app.use('/graphql/group', getUser, graphqlHTTP({
   customFormatErrorFn: errorhandler 
 }));
 
-process.REMINDER = spawn('node', ['./util/reminder.js']);
 
 app.use(errorhandler);
 

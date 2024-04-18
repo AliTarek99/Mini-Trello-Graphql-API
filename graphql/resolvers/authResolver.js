@@ -7,13 +7,20 @@ const jwt = require('jsonwebtoken');
 
 exports.login = async ({ data }, req) => {
     let res = { errors: [], successful: true };
-    if (!validator.isEmail(data.email) && !data.name) {
+    if ((!data.email && !data.name) || (data.email && !validator.isEmail(data.email))) {
         res.errors.push('Invalid Credentials!');
         res.successful = false;
         return res;
     }
     try {
-        var user = await Users.findOne({ email: data.email, name: data.name }, {
+        let query;
+        if (data.email) {
+            query = { email: data.email };
+        }
+        else {
+            query = { name: data.name };
+        }
+        var user = await Users.findOne(query, {
             friends: 0,
             friendRequests: 0,
             verficationToken: 0,
@@ -56,7 +63,7 @@ exports.signup = async ({ data }, req) => {
         res.errors.push('Password must be between 5 and 20 characters!');
         res.successful = false;
     }
-    
+
 
     if (data.phoneNumber && !validator.isMobilePhone(data.phoneNumber)) {
         res.errors.push('Invalid phoneNumber!');

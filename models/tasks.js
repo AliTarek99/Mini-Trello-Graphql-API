@@ -22,7 +22,7 @@ const Tasks = new schema({
     },
     dueDate: schema.Types.Date,
     media: {
-        type: [{ type: schema.Types.String, unique: true }]
+        type: [{ type: schema.Types.String }]
     },
     state: {
         type: schema.Types.ObjectId,
@@ -30,7 +30,7 @@ const Tasks = new schema({
     },
     reminderID: {
         type: schema.Types.String,
-        unique: true
+        index: true
     }
 });
 

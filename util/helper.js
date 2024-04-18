@@ -40,7 +40,7 @@ exports.getUser = async (req, res, next) => {
             if(user) {
                 req.user = user;
                 if(next)
-                    next();
+                    return next();
                 else return;
             }
         }
@@ -58,30 +58,34 @@ exports.fileUpload = async (req, res, next) => {
         if(!req.user) {
             return res.status(401).json({msg: 'Unauthorized access.'});
         }
-        if(!req.body.dest || !req.files) {
+        if(!req.body.dest || !req.file) {
             let err = new Error('Missing data.');
+            err.originalError = true;
             err.set = true;
             throw err;
         }
 
         if(req.body.dest == 'profile') {
-            return res.status(201).json({msg: 'Image uploaded.'});
+            return res.status(201).json({msg: 'Image uploaded.', url: `${req.protocol}://${req.get('host')}/profile/${req.file.path.replace(/\\/g, '/')}`});
         }
         else if(req.body.dest == 'group') {
             if(!req.body.groupId) {
                 let err = new Error('Missing data.');
+                err.originalError = true;
                 err.set = true;
                 throw err;
             }
             let member = await groupMembers.findOne({user: req.user._id, group: req.body.groupId});
             if(!member) {
                 let err = new Error('Unauthorized access.');
+                err.originalError = true;
                 err.set = true;
                 throw err;
             }
-            return res.status(201).json({msg: 'Media uploaded.'});
+            return res.status(201).json({msg: 'Media uploaded.', url: `${req.protocol}://${req.get('host')}/groups/${req.file.path.replace(/\\/g, '/')}`});
         }
         let err = new Error('Invalid dest.');
+        err.originalError = true;
         err.set = true;
         throw err;
     } catch(err) {
@@ -97,7 +101,7 @@ exports.errorhandler = (err, req, res, next) => {
         return res.status(400).json({msg: err.message});
     }
     console.log(err);
-    if(req) {
+    if(next) {
         return res.status(500).json({msg: 'Something went wrong we are working on it.'});
     }
     return {msg: 'Something went wrong we are working on it.'}

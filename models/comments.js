@@ -20,7 +20,24 @@ const Comments = new schema({
     text: {
         type: schema.Types.String
     },
-    mentions: [{type: schema.Types.ObjectId, ref: 'Users'}]
+    mentions: [{ type: schema.Types.ObjectId, ref: 'Users' }]
 });
+
+Comments.pre('deleteMany', async function (next) {
+    try {
+        // delete media before deleting comment
+        let comments = await module.exports.find({task: this.getQuery().task});
+        comments = comments.forEach(value => {
+            try {
+                deleteFile(`data\\media\\${value.media.split('/')[6]}`)
+            } catch (err) {
+                console.log(err);
+            }
+        });
+        next();
+    } catch (err) {
+        console.log(err);
+    }
+})
 
 module.exports = mongoose.model('Comments', Comments, 'Comments');

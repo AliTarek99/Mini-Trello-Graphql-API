@@ -2,11 +2,12 @@ const Task = require('../../models/tasks');
 const Group = require('../../models/groups');
 const GroupMember = require('../../models/groupMembers');
 const { types } = require('../../util/reminder');
-const { sendEmail } = require('../../util/helper');
+const { sendEmail, deleteFile } = require('../../util/helper');
 const User = require('../../models/users');
 const Comment = require('../../models/comments');
 const { getIO } = require('../../util/sockets');
 const { Worker } = require('worker_threads');
+const users = require('../../models/users');
 // const { GraphQLScalarType } = require('graphql')
 
 
@@ -33,35 +34,35 @@ const { Worker } = require('worker_threads');
 // })
 
 exports.addComment = async ({ taskId, comment, notifyViaEmail }, req) => {
-    let res = { errors: [], successful: true };
+    let res = {status: { errors: [], successful: true }};
     if (!comment.text && !comment.media) {
-        res.errors.push('Bad request.')
-        res.successful = false;
+        res.status.errors.push('Bad request.')
+        res.status.successful = false;
         return res;
     }
     // check whether taskId is correct or not
     let task = await Task.findById(taskId, { assignedUsers: 1, group: 1, name: 1 }).populate('assignedUsers', 'name email');
     if (!task) {
-        res.errors.push('Task not found.')
-        res.successful = false;
+        res.status.errors.push('Task not found.')
+        res.status.successful = false;
         return res;
     }
 
     // check if user is admin or one of the assigned users to this task
     let member = await GroupMember.findOne({ user: req.user._id, group: task.group });
-    let assigned = member.admin | task.assignedUsers.findIndex() != -1;
+    let assigned = member.admin | task.assignedUsers.findIndex(value => req.user._id.toString() == value._id.toString()) != -1;
     if (!assigned) {
-        res.errors.push('User must be admin or assigned to this task to comment.');
-        res.successful = false;
+        res.status.errors.push('User must be admin or assigned to this task to comment.');
+        res.status.successful = false;
         return res;
     }
 
     // send email if user wants to notify other users via email
     if (notifyViaEmail) {
-        task.assignedUsers = task.assignedUsers.map(value => {
+        let emailedUsers = task.assignedUsers.map(value => {
             return { Name: value.name, Email: value.email };
         });
-        sendEmail(task.assignedUsers, {
+        sendEmail(emailedUsers, {
             subject: `Task Comments`,
             textPart: `${req.user.name} added a comment to task: ${task.name}\n${'Comment:' + comment.text || ''}`,
             htmlPart: `<b>${req.user.name}</b> added a comment to task: <b>${task.name}</b><br>${'Comment:' + comment.text || ''}`
@@ -72,12 +73,12 @@ exports.addComment = async ({ taskId, comment, notifyViaEmail }, req) => {
     if (comment.mentions && comment.mentions.length) {
         let users = await User.find({ name: { $in: comment.mentions } }, { _id: 1 });
         var members = await GroupMember.find({ user: { $in: users }, group: task.group });
-        let tmp = new Set(task.assignedUsers);
-        members = members.filter(value => value.admin || tmp.has(value.user)).map(value => value.user);
+        let tmp = new Set(task.assignedUsers.map(value => value._id.toString()));
+        members = members.filter(value => value.admin || tmp.has(value.user.toString())).map(value => value.user);
         let sockets = getIO();
         members.forEach(value => {
-            if (sockets && sockets.userSocket[value.user.toString()]) {
-                sockets.to(sockets.userSocket[value.user.toString()]).emit('addedComment', { taskId: taskId, groupId: task.group, comment: comment });
+            if (sockets && sockets.userSocket[value.toString()]) {
+                sockets.to(sockets.userSocket[value.toString()]).emit('addedComment', { taskId: taskId, groupId: task.group, comment: comment });
             }
         });
     }
@@ -91,41 +92,52 @@ exports.addComment = async ({ taskId, comment, notifyViaEmail }, req) => {
         user: req.user._id
     });
     c = await c.save();
+    await c.populate('user', 'name picture');
     res.comment = c;
     return res;
 }
 
 exports.addTask = async ({ task, groupId }, req) => {
-    let res = {status: { errors: [], successful: true }};
+    let res = { status: { errors: [], successful: true } };
     // check if user is group admin
-    let member = await GroupMember.findOne({ user: req.user._id, admin: true, group: groupId });
-    if (!member) {
-        res.status.errors.push('user must be group admin to add tasks.');
-        res.status.successful = false;
-        return res;
-    }
-
-    // filter assigned users list if it has users that are not group members
-    task.assignedUsers = await task.assignedUsers.filter(async u => {
-        if (!(await GroupMember.findOne({ user: u, group: groupId }))) {
-            return false;
+    try {
+        let member = await GroupMember.findOne({ user: req.user._id, admin: true, group: groupId });
+        if (!member) {
+            res.status.errors.push('user must be group admin to add tasks.');
+            res.status.successful = false;
+            return res;
         }
-        return true;
-    });
 
-    // save task to database
-    let tmp = new Task({
-        name: task.name,
-        group: groupId,
-        assignedUsers: task.assignedUsers,
-        description: task.description,
-        dueDate: task.dueDate,
-        media: task.media,
-        state: task.state
-    });
-    tmp = await tmp.save();
-    await tmp.populate('assignedUsers', '_id name email picture');
-    res.task = tmp;
+        // filter assigned users list if it has users that are not group members
+        task.assignedUsers = await User.find({ name: { $in: task.assignedUsers } }, { _id: 1 })
+        task.assignedUsers = await task.assignedUsers.filter(async u => {
+            u = u._id;
+            try {
+                if (!(await GroupMember.findOne({ user: u, group: groupId }))) {
+                    return false;
+                }
+                return true;
+            } catch (err) {
+                console.log(err);
+            }
+        });
+
+        // save task to database
+        var tmp = new Task({
+            name: task.name,
+            group: groupId,
+            assignedUsers: task.assignedUsers,
+            description: task.description,
+            dueDate: task.dueDate,
+            media: task.media,
+            state: task.state
+        });
+        tmp = await tmp.save();
+        await tmp.populate('assignedUsers', '_id name email picture');
+        res.task = tmp;
+    } catch (err) {
+        console.log(err);
+    }
 
     // notify other assigned users
     let sockets = getIO();
@@ -139,7 +151,6 @@ exports.addTask = async ({ task, groupId }, req) => {
         textPart: `To whom it may concern,\n${req.user.name} assinged "${tmp.name}" task to you and its scheduled date to complete is ${tmp.dueDate}}.`,
         htmlPart: `To whom it may concern,<br><b>${req.user.name}</b> assinged <b>"${tmp.name}"</b> task to you and its scheduled date to complete is <b>${tmp.dueDate}</b>.`
     });
-
     // schedule reminder in worker thread
     process.REMINDER.postMessage({ date: task.dueDate, taskId: tmp._id.toString(), type: types.create });
     return res;
@@ -165,9 +176,9 @@ exports.changeTaskState = async ({ taskId, newStateId }, req) => {
     if (!found) {
         found = 0;
         task.group.roles.forEach(function (value) {
-            if (value._id == member.role) {
-                value.permissions.forEach(function (value) {
-                    found += (value.toString() == newStateId || value == task.state ? 1 : 0);
+            if (value._id.toString() == member.role.toString()) {
+                value.permissions.forEach(function (v) {
+                    found += (v.toString() == newStateId || v.toString() == task.state.toString() ? 1 : 0);
                 });
             }
         });
@@ -198,8 +209,6 @@ exports.changeTaskState = async ({ taskId, newStateId }, req) => {
     });
     // get old and new state's names
     let oldState = task.group.states.find(value => value._id.toString() == task.state.toString()), newState = task.group.states.find(value => value._id.toString() == newStateId.toString());
-    oldState = oldState? oldState.name: '';
-    newState = newState? newState.name: '';
 
     sendEmail(task.assignedUsers.map(value => { return { Name: value.name, Email: value.email } }), {
         subject: 'Task State Changed.',
@@ -213,90 +222,101 @@ exports.changeTaskState = async ({ taskId, newStateId }, req) => {
 }
 
 exports.removeTask = async ({ taskId }, req) => {
-    // if (req.user) {
+    // check if member is group admin
+    try {
+        let task = await Task.findById(taskId);
+        if (task) {
+            let member = await GroupMember.findOne({ user: req.user._id, group: task.group, admin: true });
+            if (!member) {
+                return false;
+            }
 
-        // check if member is group admin
-        let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
-        if (!member.admin) {
-            return false
-        }
+            // deleting task
+            await Task.deleteOne({ _id: taskId });
 
-        // deleting task
-        let tmp = await Task.findByIdAndDelete(taskId);
-        if (tmp) {
-
-            // delete all comments in task
-            Comment.deleteMany({ task: tmp._id });
-
-            // remove scheduled reminder for task's due date
-            process.REMINDER.postMessage({ type: types.delete, taskId: tmp._id });
             return true;
         }
-        return false;
-    // }
-    // return false;
+    } catch (err) {
+        console.log(err);
+    }
+    return false;
 }
 
 exports.modifyTask = async ({ task }, req) => {
     let res = { errors: [], successful: true };
-    // check that request sender is group admin
-    let member = await GroupMember.findOne({ user: req.user._id, admin: true, group: groupId });
-    if (!member) {
-        res.errors.push('user must be group admin to add tasks.');
-        res.successful = false;
-        return res;
-    }
-
-
-    res.task = await Task.findById(task._id);
-    if (res.task) {
-        // check if all assigned users are group members and filter them
-        let sockets = getIO();
-        task.assignedUsers = await task.assignedUsers.filter(async value => {
-            let u = await GroupMember.findOne({ user: value, group: res.task.group }).populate('user', '_id email name')
-            if (!(u)) {
-                return false;
+    try {
+        res.task = await Task.findById(task.id);
+        // check that request sender is group admin
+        if (res.task) {
+            let member = await GroupMember.findOne({ user: req.user._id, admin: true, group: res.task.group });
+            if (!member) {
+                res.errors.push('user must be group admin to modify tasks.');
+                res.successful = false;
+                return res;
             }
 
-            if (sockets && sockets.userSocket[u._id.toString()]) {
-                sockets.to(sockets.userSocket[u._id.toString()]).emit('taskModification', { task: task });
+            let group = await Group.findById(res.task.group, { states: 1 });
+            if (group.states.findIndex(val => (val._id.toString() == task.state.toString())) == -1) {
+                res.errors.push('Invalid state.');
+                res.successful = false;
+                return res;
             }
 
-            sendEmail([{
-                Name: u.name,
-                Email: u.email
-            }], {
-                subject: 'Task Modification',
-                textPart: `To whom it may concern,\n${req.user.name} modified "${res.task.name}" task.`,
-                htmlPart: `To whom it may concern,<br><b>${req.user.name}<b> modified <b>"${res.task.name}"</b> task.`
-            });
-            return true;
-        });
+            // check if all assigned users are group members and filter them
+            let sockets = getIO();
+            if (task.assignedUsers) {
+                let len = task.assignedUsers.length
+                task.assignedUsers = await User.find({ name: { $in: task.assignedUsers } }, { _id: 1 })
+                task.assignedUsers = await GroupMember.find({ user: { $in: task.assignedUsers }, group: res.task.group }).populate('user', '_id email name')
+                task.assignedUsers.map(value => {
+                    let u = value.user
 
-        //modify task data
-        res.task.assignedUsers = task.assignedUsers || res.task.assignedUsers;
-        res.task.name = task.name;
-        res.task.media = task.media || res.task.media;
-        res.task.dueDate = task.dueDate || res.task.dueDate;
-        res.task.description = task.description || res.task.description;
-        res.task.states = task.states || res.task.states;
+                    if (sockets && sockets.userSocket[u._id.toString()]) {
+                        sockets.to(sockets.userSocket[u._id.toString()]).emit('taskModification', { task: task });
+                    }
 
-        // schedule reminder in child process "reminder"
-        process.REMINDER.postMessage({ date: res.task.dueDate, taskId: res.task._id.toString(), type: types.modify });
-        await res.task.save();
-        res.task.populate('assignedUsers', 'name picture')
-    }
-    else {
-        res.errors.push('Task not found.');
+                    sendEmail([{
+                        Name: u.name,
+                        Email: u.email
+                    }], {
+                        subject: 'Task Modification',
+                        textPart: `To whom it may concern,\n${req.user.name} modified "${res.task.name}" task.`,
+                        htmlPart: `To whom it may concern,<br><b>${req.user.name}<b> modified <b>"${res.task.name}"</b> task.`
+                    });
+                    return value.user._id;
+                });
+                if (len > task.assignedUsers.length)
+                    res.errors.push('Some Users are not group members.');
+            }
+            //modify task data
+            res.task.assignedUsers = task.assignedUsers || res.task.assignedUsers;
+            res.task.name = task.name || res.task.name;
+            res.task.media = task.media || res.task.media;
+            res.task.dueDate = task.dueDate || res.task.dueDate;
+            res.task.description = task.description || res.task.description;
+            res.task.state = task.state || res.task.state;
+
+            // schedule reminder in child process "reminder"
+            process.REMINDER.postMessage({ date: res.task.dueDate, taskId: res.task._id.toString(), type: types.modify });
+            await res.task.save();
+            await res.task.populate('assignedUsers', 'name picture')
+        }
+        else {
+            res.errors.push('Task not found.');
+            res.successful = false;
+        }
+    } catch (err) {
+        res.errors.push('Error occured.');
         res.successful = false;
+        console.log(err);
     }
     return res;
 }
 
 exports.modifyGroupInfo = async ({ data }, req) => {
-    let res = {status: { errors: [], successful: true }};
+    let res = { status: { errors: [], successful: true } };
     // check that request sender is group admin
-    let member = await GroupMember.findOne({ user: req.user._id, admin: true, group: data.id }, {user: 1});
+    let member = await GroupMember.findOne({ user: req.user._id, admin: true, group: data.id }, { user: 1 });
     if (!member) {
         res.status.errors.push('user must be an admin to change group info.');
         res.status.successful = false;
@@ -320,7 +340,7 @@ exports.modifyGroupInfo = async ({ data }, req) => {
 }
 
 exports.createGroup = async ({ data }, req) => {
-    let res = {status: { errors: [], successful: true }};
+    let res = { status: { errors: [], successful: true } };
     let group = new Group({
         creator: req.user._id,
         name: data.name,
@@ -329,7 +349,7 @@ exports.createGroup = async ({ data }, req) => {
         inviteCode: crypto.randomUUID().toString()
     });
     res.group = await group.save();
-    let member = new GroupMember({admin: true, group: res.group._id, user: req.user._id});
+    let member = new GroupMember({ admin: true, group: res.group._id, user: req.user._id });
     member.save();
     await res.group.populate('creator', 'name picture');
     return res;
@@ -339,57 +359,57 @@ exports.deleteGroup = async ({ groupId }, req) => {
 
     // check if the request sender is the creator of the group before deleting it
     let group = await Group.findById(groupId);
-    if (req.user._id == group.creator) {
+    if (group && req.user._id.toString() == group.creator.toString()) {
 
         // send email to all group members to notify them
         GroupMember.find({ group: groupId }, { user: 1 })
             .populate('user', 'email name')
             .then(members => {
-                sendEmail(members.map(value => { return { Name: value.name, Email: value.email } }), {
+                sendEmail(members.map(value => { return { Name: value.user.name, Email: value.user.email } }), {
                     subject: 'Group Deletion',
                     textPart: `To whom it may concern,\n${req.user.name} deleted group "${group.name}" which has id of "${group._id}"`,
                     htmlPart: `To whom it may concern,<br><b>${req.user.name}</b> deleted group <b>"${group.name}"</b> which has id of <b>"${group._id}"</b>`
                 });
             })
-        await Group.findByIdAndDelete(groupId);
+        await Group.deleteOne({_id: groupId});
         return true;
     }
     return false;
 }
 
 exports.addRole = async ({ groupId, role }, req) => {
-    let res = {status: { errors: [], successful: true }};
-        // check that request sender is group admin
-        let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
-        if (!member.admin) {
-            res.status.errors.push('Unauthorized access.')
-            res.status.successful = false;
-            return res;
-        }
-
-        // get group and check if the states in permissions array are actual states in the group
-        let group = await Group.findById(groupId);
-        let found = true;
-        role.permissions.forEach(value => found &= Boolean(group.states.find(state => state._id.toString() == value)));
-        if (!found) {
-            res.status.errors.push('Invalid state ID.');
-            res.status.successful = false;
-            return res;
-        }
-
-        // save role
-        group.roles.push({
-            name: role.name,
-            color: {
-                r: role.color.r,
-                g: role.color.g,
-                b: role.color.b
-            },
-            permissions: role.permissions
-        });
-        group = await group.save();
-        res.group = await group.populate('creator', 'name picture');
+    let res = { status: { errors: [], successful: true } };
+    // check that request sender is group admin
+    let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
+    if (!member.admin) {
+        res.status.errors.push('Unauthorized access.')
+        res.status.successful = false;
         return res;
+    }
+
+    // get group and check if the states in permissions array are actual states in the group
+    let group = await Group.findById(groupId);
+    let found = true;
+    role.permissions.forEach(value => found &= Boolean(group.states.find(state => state._id.toString() == value)));
+    if (!found) {
+        res.status.errors.push('Invalid state ID.');
+        res.status.successful = false;
+        return res;
+    }
+
+    // save role
+    group.roles.push({
+        name: role.name,
+        color: {
+            r: role.color.r,
+            g: role.color.g,
+            b: role.color.b
+        },
+        permissions: role.permissions
+    });
+    group = await group.save();
+    res.group = await group.populate('creator', 'name picture');
+    return res;
 }
 
 exports.removeRole = async ({ groupId, roleId }, req) => {
@@ -461,26 +481,26 @@ exports.modifyRole = async ({ groupId, role }, req) => {
 
 exports.assignTaskToMember = async ({ groupId, taskId, memberName }, req) => {
     let res = { errors: [], successful: true };
-    // if (req.user) {
-        // check that request sender is group admin
-        let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
-        if (!member.admin) {
-            res.errors.push('Unauthorized access.')
-            res.successful = false;
-            return res;
-        }
+    // check that request sender is group admin
+    let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
+    if (!member.admin) {
+        res.errors.push('Unauthorized access.')
+        res.successful = false;
+        return res;
+    }
 
-        // check if member is in group
-        let user = await User.findOne({ name: memberName }, { _id: 1, name: 1 });
-        member = await GroupMember.findOne({ user: user._id, group: groupId }, { user: 1 });
-        if (!member) {
-            res.errors.push('User not in group.');
-            res.successful = false;
-            return res;
-        }
+    // check if member is in group
+    let user = await User.findOne({ name: memberName }, { _id: 1, name: 1, email: 1 });
+    member = await GroupMember.findOne({ user: user._id, group: groupId }, { user: 1 });
+    if (!member) {
+        res.errors.push('User not in group.');
+        res.successful = false;
+        return res;
+    }
 
-        let task = await Task.findById(taskId, { name: 1, assignedUsers: 1, dueDate: 1 });
+    let task = await Task.findById(taskId, { name: 1, assignedUsers: 1, dueDate: 1 });
 
+    if(!task.assignedUsers.find(value => value.toString() == user._id.toString())) {
         // notify user that task has been assigned to him
         sendEmail([{ Name: user.name, Email: user.email }], {
             subject: `Task Assignment: ${task.name}-${task.dueDate}`,
@@ -495,44 +515,44 @@ exports.assignTaskToMember = async ({ groupId, taskId, memberName }, req) => {
         // save user in assigned users in task collection
         task.assignedUsers.push(user._id);
         await task.save();
-        return res;
-    // }
-    // res.errors.push('Unauthorized access.');
-    // res.successful = false;
-    // return res;
+    }
+    return res;
 }
 
 exports.addState = async ({ groupId, state }, req) => {
-    let res = { errors: [], successful: true };
-    // if (req.user) {
+    let res = {status: { errors: [], successful: true }};
+    try {
+        // Check that user sending the request is an admin of the group
         let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
         if (!member.admin) {
-            res.errors.push('Unauthorized access.')
-            res.successful = false;
+            res.status.errors.push('Unauthorized access.')
+            res.status.successful = false;
             return res;
         }
-
+        // Update the group states array
         let group = await Group.findById(groupId, { states: 1 });
         group.states.push({ name: state });
         group = await group.save()
         res.state = group.states[group.states.length - 1];
-        return res;
-    // }
-    // res.errors.push('Unauthorized access.');
-    // res.successful = false;
-    // return res;
+    } catch(err) {
+        console.log(err);
+    }
+    return res;
 }
 
 exports.removeState = async ({ groupId, stateId }, req) => {
-    // if (req.user) {
+    try {
+        // Check that user sending the request is an admin of the group
         let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
         if (!member.admin) {
             return false;
         }
-
+        // Modify the the group states list 
         let group = await Group.findById(groupId, { states: 1 });
         group.states = group.states.filter(value => value._id.toString() != stateId);
+        // Save changes if there is at least on more state
         if (group.states.length) {
+            // Move all Tasks in the removed state to the first state 
             let tasks = await Task.find({ group: groupId, state: stateId }, { state: 1 });
             tasks.forEach(value => {
                 value.state = group.states[0];
@@ -541,33 +561,34 @@ exports.removeState = async ({ groupId, stateId }, req) => {
             await group.save();
             return true;
         }
-        return false;
-    // }
-    // return false;
+    } catch(err) {
+        console.log(err);
+    }
+    return false;
 }
 
 exports.modifyStateName = async ({ groupId, state }, req) => {
     let res = { errors: [], successful: true };
-    // if (req.user) {
+    try {
+        // Check that user sending the request is an admin of the group
         let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
         if (!member.admin) {
             res.errors.push('Unauthorized access.')
             res.successful = false;
             return res;
         }
-
+        // Modify state name if id is found 
         let group = await Group.findById(groupId, { states: 1 });
-        group.states = group.states.map(value => value._id.toString() == state.id ? { _id: value._id, name: value.name } : value);
+        group.states = group.states.map(value => value._id.toString() == state.id.toString() ? { _id: value._id, name: state.name } : value);
         await group.save();
-        return res;
-    // }
-    // res.errors.push('Unauthorized access.');
-    // res.successful = false;
-    // return res;
+    } catch(err) {
+        console.log(err);
+    }
+    return res;
 }
 
 exports.createGroupInviteCode = async ({ groupId }, req) => {
-    let res = {status: { errors: [], successful: true }};
+    let res = { status: { errors: [], successful: true } };
     // check that the request sender is a group admin
     let member = await GroupMember.findOne({ user: req.user._id, group: groupId }, { admin: 1 });
     if (!member.admin) {
@@ -583,13 +604,13 @@ exports.createGroupInviteCode = async ({ groupId }, req) => {
 }
 
 exports.joinGroup = async ({ code }, req) => {
-    let res = {status: { errors: [], successful: true }};
+    let res = { status: { errors: [], successful: true } };
     let group = await Group.findOne({ inviteCode: code }).populate('creator', 'name picture');
     // check if there is a group having this code
     if (group) {
         // check that the request sender is not a member
-        let member = await GroupMember.findOne({user: req.user._id, group: group._id}, {user: 1});
-        if(!member) {
+        let member = await GroupMember.findOne({ user: req.user._id, group: group._id }, { user: 1 });
+        if (!member) {
             // create member object and save it to the database
             member = new GroupMember({
                 admin: false,
@@ -615,7 +636,7 @@ exports.addMember = async ({ groupId, name }, req) => {
 
     // save group member to database
     let user = await User.findOne({ name: name });
-    if(!user || await GroupMember.findOne({user: user._id, group: groupId}, {user: 1})) {
+    if (!user || await GroupMember.findOne({ user: user._id, group: groupId }, { user: 1 })) {
         return false;
     }
     member = new GroupMember({
@@ -634,7 +655,7 @@ exports.removeMember = async ({ groupId, name }, req) => {
     }
     let user = req.user.name == name ? req.user : await User.findOne({ name: name }, { _id: 1, email: 1, name: 1 });
 
-    if(!user) {
+    if (!user) {
         return false;
     }
 
@@ -642,7 +663,7 @@ exports.removeMember = async ({ groupId, name }, req) => {
     if (group.creator == user._id) {
         return false;
     }
-    await GroupMember.findOneAndDelete({user:user._id, group: groupId});
+    await GroupMember.findOneAndDelete({ user: user._id, group: groupId });
     sendEmail([{ Name: user.name, Email: user.email }], {
         subject: 'Removed From Group',
         textPart: `Dear ${user.name},\nYou have been removed from ${group.name} group by ${req.user.name}.`,
@@ -738,8 +759,8 @@ exports.changePrivilege = async ({ groupId, name, admin }, req) => {
 
 exports.searchGroups = async ({ name }, req) => {
     // if (req.user) {
-        let groups = await Group.find({ name: { $regex: `^${name}.*` } }, { inviteCode: 0, roles: 0, states: 0 });
-        return groups;
+    let groups = await Group.find({ name: { $regex: `^${name}.*` } }, { inviteCode: 0, roles: 0, states: 0 });
+    return groups;
     // }
     // return [];
 }
@@ -755,14 +776,14 @@ exports.getTasks = async ({ groupId, taskId }, req) => {
 
 exports.getMyGroups = async (args, req) => {
     // if (req.user) {
-        let groups = await GroupMember.find({ user: req.user._id }, { group: 1, admin: 1 }).populate('group');
+    let groups = await GroupMember.find({ user: req.user._id }, { group: 1, admin: 1 }).populate('group');
 
-        return groups.map(value => {
-            if (value.admin)
-                return value;
-            delete value.group.inviteCode;
+    return groups.map(value => {
+        if (value.admin)
             return value;
-        })
+        delete value.group.inviteCode;
+        return value;
+    })
     // }
     // return [];
 }

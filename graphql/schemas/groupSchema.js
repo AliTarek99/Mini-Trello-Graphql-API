@@ -37,13 +37,13 @@ module.exports = buildSchema(`
     }
 
     input ModifiedTaskInput {
-        id: ID
-        name: String!
-        description: String!
-        assignedUsers: [String]!
-        dueDate: String!
+        id: ID!
+        name: String
+        description: String
+        assignedUsers: [String]
+        dueDate: String
         media: [String]
-        state: ID!
+        state: ID
     }
 
     type Color {
@@ -112,7 +112,6 @@ module.exports = buildSchema(`
     }
 
     input CommentInput {
-        id: ID
         media: String
         text: String
         mentions: [String]

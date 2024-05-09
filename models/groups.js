@@ -45,19 +45,13 @@ const Groups = new schema({
     }
 });
 
-Groups.pre('deleteMany', async function (next) {
+Groups.pre('deleteOne', async function (next) {
     try {
         // delete and unschedule all tasks
-        let tmp = await tasks.find({group: {$in: this.getQuery()._id}});
-        tasks.deleteMany({group: this.getQuery()._id});
-        tmp.forEach(value => {
-            process.REMINDER.stdin.resume();
-            process.REMINDER.stdin.write(JSON.stringify({type: types.delete, taskId: value._id}));
-            process.REMINDER.end();
-        });
+        await tasks.deleteMany({group: this.getQuery()._id});
 
         // delete all members
-        groupMembers.deleteMany({group: this.getQuery()._id});
+        await groupMembers.deleteMany({group: this.getQuery()._id});
         next();
     } catch(err) {
         console.log(err);

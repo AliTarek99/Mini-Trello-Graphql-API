@@ -20,3 +20,7 @@ This schema diagram shows the collections in the database and their fields.
 Note: All the _id fields are indexed by default.
 
 ![image](https://github.com/AliTarek99/Mini-Trello-Graphql-API/assets/120846112/81afae4f-5731-4298-ab0c-9d3b948bd00a)
+
+# GraphQl Schemas
+
+You can find graphql schemas <a href="https://github.com/AliTarek99/Mini-Trello-Graphql-API/tree/master/graphql/schemas">here</a>
